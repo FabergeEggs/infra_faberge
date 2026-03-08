@@ -1,11 +1,14 @@
 name: frontend_stable_compose
 services:
   frontend:
-    build: ../frontend
+    build:
+      context: ../frontend
+      target: dev
     ports:
-      - "3000:80"
-    depends_on: 
-      - gateway
+      - "3000:3000"
+    volumes:
+      - ../frontend:/frontend
+      - /frontend/node_modules
 
   gateway:
     image: inchanterx/faberge-apigateway:latest
