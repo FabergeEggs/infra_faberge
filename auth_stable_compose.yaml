@@ -1,0 +1,42 @@
+name: auth_stable_compose
+services:
+  frontend:
+    image: inchanterx/faberge-frontend:latest
+    pull_policy: always
+    ports:
+      - "3000:80"
+    depends_on: 
+      - gateway
+
+  gateway:
+    image: inchanterx/faberge-apigateway:latest
+    pull_policy: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth
+      - project
+
+  auth:
+    build: ../auth_service
+    container_name: auth
+    volumes:
+      - ../auth_service:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    expose:
+      - "8000"
+
+  project:
+    image: inchanterx/faberge-project-service:latest
+    pull_policy: always
+    expose:
+    - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
