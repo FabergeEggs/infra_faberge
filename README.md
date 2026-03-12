@@ -7,10 +7,10 @@
 В неё склонируйте данный репозиторий и тот, в котором хотите разрабатывать
 
 ## Первый запуск (сборка/пересборка):
-docker compose -f .\infra_faberge\<сервис>.yaml up --build
+docker compose -f .\infra_faberge\\<сервис>.yaml up --build
 
 ## Дальнейший запуск:
-docker compose -f .\infra_faberge\<сервис>.yaml up
+docker compose -f .\infra_faberge\\<сервис>.yaml up
 
 ## Остановка:
-docker compose -f .\infra_faberge\<сервис>.yaml down
+docker compose -f .\infra_faberge\\<сервис>.yaml down
