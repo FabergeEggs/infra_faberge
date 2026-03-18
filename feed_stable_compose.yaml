@@ -1,7 +1,7 @@
-name: apigateway_stable_compose
+name: project_stable_compose
 services:
   frontend:
-    image: inchanterx/faberge-frontend:latest
+    image: inchanterx/faberge-frontend:stable
     pull_policy: always
     ports:
       - "3000:80"
@@ -9,7 +9,8 @@ services:
       - gateway
 
   gateway:
-    build: ../apigateway
+    image: inchanterx/faberge-apigateway:stable
+    pull_policy: always
     ports:
       - "8080:8080"
     depends_on:
@@ -17,7 +18,7 @@ services:
       - project
 
   auth:
-    image: inchanterx/faberge-auth-service:latest
+    image: inchanterx/faberge-auth-service:stable
     pull_policy: always
     expose:
     - "8000"
@@ -28,7 +29,7 @@ services:
       retries: 5
 
   project:
-    image: inchanterx/faberge-project-service:latest
+    image: inchanterx/faberge-project-service:stable
     pull_policy: always
     expose:
     - "8000"
@@ -39,12 +40,14 @@ services:
       retries: 5
 
   feed:
-    image: inchanterx/faberge-feed-service:stable
-    pull_policy: always
-    expose:
-    - "8000"
+    build: ../feed_service
+    container_name: feed
+    volumes:
+      - ../feed_service:/app
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
       retries: 5
+    expose:
+      - "8000"
