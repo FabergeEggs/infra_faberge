@@ -1,0 +1,83 @@
+name: faberge_latest_compose
+
+x-service-defaults: &service-defaults
+  pull_policy: always
+  expose:
+    - "8000"
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE:-inchanterx/faberge-frontend}:${VERSION:-latest}
+    pull_policy: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - gateway
+
+  gateway:
+    image: ${GATEWAY_IMAGE:-inchanterx/faberge-apigateway}:${VERSION:-latest}
+    pull_policy: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth
+      - project
+
+  auth:
+    <<: *service-defaults
+    image: ${AUTH_IMAGE:-inchanterx/faberge-auth-service}:${VERSION:-latest}
+    build:
+      context: ${AUTH_BUILD_CONTEXT:-.}
+    volumes:
+      - ${AUTH_VOLUME:-/dev/null:/dev/null}
+    container_name: auth
+
+  project:
+    <<: *service-defaults
+    image: ${PROJECT_IMAGE:-inchanterx/faberge-project-service}:${VERSION:-latest}
+    build:
+      context: ${PROJECT_BUILD_CONTEXT:-.}
+    volumes:
+      - ${PROJECT_VOLUME:-/dev/null:/dev/null}
+    container_name: project
+
+  feed:
+    <<: *service-defaults
+    image: ${FEED_IMAGE:-inchanterx/faberge-feed-service}:${VERSION:-latest}
+    build:
+      context: ${FEED_BUILD_CONTEXT:-.}
+    volumes:
+      - ${FEED_VOLUME:-/dev/null:/dev/null}
+    container_name: feed
+
+  profile:
+    <<: *service-defaults
+    image: ${PROFILE_IMAGE:-inchanterx/faberge-profile-service}:${VERSION:-latest}
+    build:
+      context: ${PROFILE_BUILD_CONTEXT:-.}
+    volumes:
+      - ${PROFILE_VOLUME:-/dev/null:/dev/null}
+    container_name: profile
+
+  media:
+    <<: *service-defaults
+    image: ${MEDIA_IMAGE:-inchanterx/faberge-media-service}:${VERSION:-latest}
+    build:
+      context: ${MEDIA_BUILD_CONTEXT:-.}
+    volumes:
+      - ${MEDIA_VOLUME:-/dev/null:/dev/null}
+    container_name: media
+
+  response:
+    <<: *service-defaults
+    image: ${RESPONSE_IMAGE:-inchanterx/faberge-response-service}:${VERSION:-latest}
+    build:
+      context: ${RESPONSE_BUILD_CONTEXT:-.}
+    volumes:
+      - ${RESPONSE_VOLUME:-/dev/null:/dev/null}
+    container_name: response
