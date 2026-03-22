@@ -11,6 +11,76 @@ x-service-defaults: &service-defaults
     retries: 5
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: faberge-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-faberge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-faberge_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-faberge}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/01-init-multiple-databases.sh:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-faberge} -d ${POSTGRES_DB:-faberge}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: faberge-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: faberge-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: faberge-minio-init
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MEDIA_S3_BUCKET: ${MEDIA_S3_BUCKET:-media}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb "local/$$MEDIA_S3_BUCKET" --ignore-existing
+
   frontend:
     image: ${FRONTEND_IMAGE:-inchanterx/faberge-frontend}:${VERSION:-latest}
     pull_policy: always
@@ -45,6 +115,11 @@ services:
     volumes:
       - ${PROJECT_VOLUME:-/dev/null:/dev/null}
     container_name: project
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/project_db
 
   feed:
     <<: *service-defaults
@@ -54,6 +129,14 @@ services:
     volumes:
       - ${FEED_VOLUME:-/dev/null:/dev/null}
     container_name: feed
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/feed_db
+      REDIS_URL: redis://redis:6379/0
 
   profile:
     <<: *service-defaults
@@ -63,6 +146,11 @@ services:
     volumes:
       - ${PROFILE_VOLUME:-/dev/null:/dev/null}
     container_name: profile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/profile_db
 
   media:
     <<: *service-defaults
@@ -72,6 +160,17 @@ services:
     volumes:
       - ${MEDIA_VOLUME:-/dev/null:/dev/null}
     container_name: media
+    depends_on:
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_BUCKET: ${MEDIA_S3_BUCKET:-media}
+      S3_REGION: ${S3_REGION:-us-east-1}
 
   response:
     <<: *service-defaults
@@ -81,3 +180,13 @@ services:
     volumes:
       - ${RESPONSE_VOLUME:-/dev/null:/dev/null}
     container_name: response
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/response_db
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

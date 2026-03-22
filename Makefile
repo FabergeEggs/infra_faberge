@@ -97,7 +97,7 @@ all-dev:
 	docker compose -f $(COMPOSE_FILE) up
 
 all-latest:
-	VERSION=local \
+	VERSION=latest \
 	docker compose -f $(COMPOSE_FILE) up
 
 all-local:
