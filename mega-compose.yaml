@@ -24,14 +24,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/01-init-multiple-databases.sh:ro
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-faberge} -d ${POSTGRES_DB:-faberge}",
-        ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-faberge}"]
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - faberge_network
 
   redis:
     image: redis:7-alpine
@@ -45,6 +43,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    networks:
+      - faberge_network
 
   minio:
     image: minio/minio:latest
@@ -63,6 +63,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - faberge_network
 
   minio-init:
     image: minio/mc:latest
@@ -76,117 +78,67 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MEDIA_S3_BUCKET: ${MEDIA_S3_BUCKET:-media}
     entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
-        mc mb "local/$$MEDIA_S3_BUCKET" --ignore-existing
+    command: |
+      mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+      mc mb "local/$$MEDIA_S3_BUCKET" --ignore-existing
+    networks:
+      - faberge_network
 
-  frontend:
-    image: ${FRONTEND_IMAGE:-inchanterx/faberge-frontend}:${VERSION:-latest}
-    pull_policy: always
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: faberge-keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-faberge}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-faberge_dev}
+      KC_HOSTNAME: localhost
+      KC_HTTP_ENABLED: "true"
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
     ports:
-      - "3000:80"
+      - "8082:8080"
     depends_on:
-      - gateway
-
-  gateway:
-    image: ${GATEWAY_IMAGE:-inchanterx/faberge-apigateway}:${VERSION:-latest}
-    pull_policy: always
-    ports:
-      - "8080:8080"
-    depends_on:
-      - auth
-      - project
+      postgres:
+        condition: service_healthy
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./keycloak-import:/opt/keycloak/data/import:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+    networks:
+      - faberge_network
 
   auth:
     <<: *service-defaults
     image: ${AUTH_IMAGE:-inchanterx/faberge-auth-service}:${VERSION:-latest}
-    build:
-      context: ${AUTH_BUILD_CONTEXT:-.}
-    volumes:
-      - ${AUTH_VOLUME:-/dev/null:/dev/null}
     container_name: auth
-
-  project:
-    <<: *service-defaults
-    image: ${PROJECT_IMAGE:-inchanterx/faberge-project-service}:${VERSION:-latest}
-    build:
-      context: ${PROJECT_BUILD_CONTEXT:-.}
-    volumes:
-      - ${PROJECT_VOLUME:-/dev/null:/dev/null}
-    container_name: project
     depends_on:
-      postgres:
-        condition: service_healthy
+      - keycloak
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/project_db
+      KEYCLOAK_BASE_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-myrealm}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-auth-service}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+      KEYCLOAK_ISSUER: http://keycloak:8080/realms/${KEYCLOAK_REALM:-myrealm}
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-auth-service}
+    ports:
+      - "8001:8000"
+    networks:
+      - faberge_network
 
-  feed:
-    <<: *service-defaults
-    image: ${FEED_IMAGE:-inchanterx/faberge-feed-service}:${VERSION:-latest}
-    build:
-      context: ${FEED_BUILD_CONTEXT:-.}
-    volumes:
-      - ${FEED_VOLUME:-/dev/null:/dev/null}
-    container_name: feed
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/feed_db
-      REDIS_URL: redis://redis:6379/0
-
-  profile:
-    <<: *service-defaults
-    image: ${PROFILE_IMAGE:-inchanterx/faberge-profile-service}:${VERSION:-latest}
-    build:
-      context: ${PROFILE_BUILD_CONTEXT:-.}
-    volumes:
-      - ${PROFILE_VOLUME:-/dev/null:/dev/null}
-    container_name: profile
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/profile_db
-
-  media:
-    <<: *service-defaults
-    image: ${MEDIA_IMAGE:-inchanterx/faberge-media-service}:${VERSION:-latest}
-    build:
-      context: ${MEDIA_BUILD_CONTEXT:-.}
-    volumes:
-      - ${MEDIA_VOLUME:-/dev/null:/dev/null}
-    container_name: media
-    depends_on:
-      minio:
-        condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
-    environment:
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      S3_BUCKET: ${MEDIA_S3_BUCKET:-media}
-      S3_REGION: ${S3_REGION:-us-east-1}
-
-  response:
-    <<: *service-defaults
-    image: ${RESPONSE_IMAGE:-inchanterx/faberge-response-service}:${VERSION:-latest}
-    build:
-      context: ${RESPONSE_BUILD_CONTEXT:-.}
-    volumes:
-      - ${RESPONSE_VOLUME:-/dev/null:/dev/null}
-    container_name: response
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/response_db
+networks:
+  faberge_network:
+    driver: bridge
 
 volumes:
   postgres_data:
+    # external: false — создаётся автоматически, данные сохраняются
   redis_data:
   minio_data:
+  keycloak_data:
