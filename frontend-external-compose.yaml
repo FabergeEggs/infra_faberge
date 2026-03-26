@@ -1,0 +1,13 @@
+name: faberge_frontend_external_compose
+
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE:-inchanterx/faberge-frontend}:${VERSION:-latest}
+    build:
+      context: ${FRONTEND_BUILD_CONTEXT:-.}
+    volumes:
+      - ${FRONTEND_VOLUME:-/dev/null:/dev/null}
+    ports:
+      - "3000:80"
+    depends_on:
+      - gateway

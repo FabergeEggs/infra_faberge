@@ -1,4 +1,6 @@
 COMPOSE_FILE=mega-compose.yaml
+COMPOSE_CORE = -f mega-compose.yaml
+COMPOSE_FRONT_LOCAL = -f frontend-local-compose.yaml
 
 up:
 	docker compose -f $(COMPOSE_FILE) up
@@ -6,6 +8,25 @@ up:
 down:
 	docker compose -f $(COMPOSE_FILE) down
 
+frontend-latest:
+	FRONTEND_BUILD_CONTEXT=../frontend \
+	FRONTEND_VOLUME=../frontend:/frontend \
+	VERSION=latest \
+	docker compose $(COMPOSE_CORE) $(COMPOSE_FRONT_LOCAL) build frontend && \
+	docker compose $(COMPOSE_CORE) $(COMPOSE_FRONT_LOCAL) up
+# 	FRONTEND_BUILD_CONTEXT=../frontend \
+# 	FRONTEND_VOLUME=../frontend:/app \
+# 	FRONTEND_IMAGE=faberge-frontend-local \
+# 	VERSION=latest \
+# 	docker compose -f $(COMPOSE_FILE) build frontend && \
+# 	docker compose -f $(COMPOSE_FILE) up frontend
+
+frontend-dev:
+	FRONTEND_BUILD_CONTEXT=../frontend \
+	FRONTEND_VOLUME=../frontend:/app \
+	FRONTEND_IMAGE= \
+	VERSION=dev \
+	docker compose -f $(COMPOSE_FILE) up --build frontend
 
 auth-dev:
 	AUTH_BUILD_CONTEXT=../auth_service \

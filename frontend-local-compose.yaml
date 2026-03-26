@@ -1,0 +1,11 @@
+services:
+  frontend:
+    build:
+      context: ${FRONTEND_BUILD_CONTEXT:-.}
+      target: dev
+    volumes:
+      - ${FRONTEND_VOLUME:-/dev/null:/dev/null}
+      - /frontend/node_modules
+      - /frontend/.next
+    ports:
+      - "3000:3000"
