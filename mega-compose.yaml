@@ -117,12 +117,14 @@ services:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
     ports:
-      - "8082:8080"  # Изменяем порт, чтобы не конфликтовать
+      - "8082:8080"
     depends_on:
       postgres_keycloak:
         condition: service_healthy
+      auth-init:
+        condition: service_completed_successfully
     volumes:
-      - ../auth_service/keycloak-export:/opt/keycloak/data/import:ro  # Путь к вашей папке с экспортом
+      - ${KEYCLOAK_EXPORT_VOLUME:-keycloak_shared_export:/opt/keycloak/data/import:ro}
       - keycloak_data:/opt/keycloak/data
     networks:
       - faberge_network
@@ -147,6 +149,19 @@ services:
     depends_on:
       - gateway
 
+  auth-init:
+    image: ${AUTH_IMAGE:-inchanterx/faberge-auth-service}:${VERSION:-latest}
+    container_name: auth-init
+    restart: "no"
+    command:
+      [
+        "sh",
+        "-c",
+        "cp -r /app/keycloak-export/* /shared-export/ 2>/dev/null || true",
+      ]
+    volumes:
+      - keycloak_shared_export:/shared-export
+
   auth:
     image: ${AUTH_IMAGE:-inchanterx/faberge-auth-service}:${VERSION:-latest} # aaa
     build:
@@ -160,8 +175,9 @@ services:
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-nmeYwMzWRHuLb7V5iCnF9T8vQ2TlW3af}
       KEYCLOAK_ISSUER: http://keycloak:8080/realms/${KEYCLOAK_REALM:-myrealm}
       KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-auth-service}
+    pull_policy: always
     ports:
-      - "8001:8000"  # Изменяем порт, чтобы не конфликтовать
+      - "8001:8000"
     depends_on:
       keycloak:
         condition: service_started
@@ -259,3 +275,4 @@ volumes:
   minio_data:
   keycloak_postgres_data:
   keycloak_data:
+  keycloak_shared_export:

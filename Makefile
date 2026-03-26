@@ -29,6 +29,7 @@ frontend-dev:
 	docker compose -f $(COMPOSE_FILE) up --build frontend
 
 auth-dev:
+	KEYCLOAK_EXPORT_VOLUME=../auth_service/keycloak-export:/opt/keycloak/data/import:ro
 	AUTH_BUILD_CONTEXT=../auth_service \
 	AUTH_VOLUME=../auth_service:/app \
 	AUTH_IMAGE= \
@@ -36,6 +37,7 @@ auth-dev:
 	docker compose -f $(COMPOSE_FILE) up
 
 auth-latest:
+	KEYCLOAK_EXPORT_VOLUME=../auth_service/keycloak-export:/opt/keycloak/data/import:ro
 	AUTH_BUILD_CONTEXT=../auth_service \
 	AUTH_VOLUME=../auth_service:/app \
 	AUTH_IMAGE= \
