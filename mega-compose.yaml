@@ -16,149 +16,135 @@ services:
     image: postgres:16-alpine
     container_name: faberge-postgres-auth
     environment:
-        POSTGRES_USER: ${POSTGRES_USER_AUTH}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_AUTH}
-        POSTGRES_DB: ${POSTGRES_DB_AUTH}
+      POSTGRES_USER: ${POSTGRES_USER_AUTH}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_AUTH}
+      POSTGRES_DB: ${POSTGRES_DB_AUTH}
     ports:
-        - "${POSTGRES_PORT_AUTH}:5432"
+      - "${POSTGRES_PORT_AUTH}:5432"
     volumes:
-        - postgres_auth_data:/var/lib/postgresql/data
-        - ./postgres/auth_service/init_auth_db.sh:/docker-entrypoint-initdb.d/init_auth_db.sh:ro
+      - postgres_auth_data:/var/lib/postgresql/data
+      - ./postgres/auth_service/init_auth_db.sh:/docker-entrypoint-initdb.d/init_auth_db.sh:ro
     healthcheck:
-        test:
-          [
-            "CMD-SHELL",
-            "pg_isready -U ${POSTGRES_USER_AUTH} -d ${POSTGRES_DB_AUTH}",
-          ]
-        interval: 5s
-        timeout: 5s
-        retries: 10
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_AUTH} -d ${POSTGRES_DB_AUTH}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-keycloak:
+    image: postgres:15-alpine
+    container_name: faberge-postgres-keycloak
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB_KEYCLOAK:-keycloak}
+      POSTGRES_USER: ${POSTGRES_USER_KEYCLOAK:-keycloak}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_KEYCLOAK:-keycloak_password}
+    volumes:
+      - keycloak_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_KEYCLOAK:-keycloak}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postgres-media:
     image: postgres:16-alpine
     container_name: faberge-postgres-media
     environment:
-        POSTGRES_USER: ${POSTGRES_USER_MEDIA}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_MEDIA}
-        POSTGRES_DB: ${POSTGRES_DB_MEDIA}
+      POSTGRES_USER: ${POSTGRES_USER_MEDIA}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_MEDIA}
+      POSTGRES_DB: ${POSTGRES_DB_MEDIA}
     ports:
-        - "${POSTGRES_PORT_MEDIA}:5432"
+      - "${POSTGRES_PORT_MEDIA}:5432"
     volumes:
-        - postgres_media_data:/var/lib/postgresql/data
-        - ./postgres/media_service/init_media_db.sh:/docker-entrypoint-initdb.d/init_media_db.sh:ro
+      - postgres_media_data:/var/lib/postgresql/data
+      - ./postgres/media_service/init_media_db.sh:/docker-entrypoint-initdb.d/init_media_db.sh:ro
     healthcheck:
-        test:
-          [
-            "CMD-SHELL",
-            "pg_isready -U ${POSTGRES_USER_MEDIA} -d ${POSTGRES_DB_MEDIA}",
-          ]
-        interval: 5s
-        timeout: 5s
-        retries: 10
-
-
-  postgres-response:
-    image: postgres:16-alpine
-    container_name: faberge-postgres-response
-    environment:
-        POSTGRES_USER: ${POSTGRES_USER_RESPONSE}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_RESPONSE}
-        POSTGRES_DB: ${POSTGRES_DB_RESPONSE}
-    ports:
-        - "${POSTGRES_PORT_RESPONSE}:5432"
-    volumes:
-        - postgres_response_data:/var/lib/postgresql/data
-        - ./postgres/response_service/init_response_db.sh:/docker-entrypoint-initdb.d/init_response_db.sh:ro
-    healthcheck:
-        test:
-          [
-            "CMD-SHELL",
-            "pg_isready -U ${POSTGRES_USER_RESPONSE} -d ${POSTGRES_DB_RESPONSE}",
-          ]
-        interval: 5s
-        timeout: 5s
-        retries: 10
-
-
-  postgres-profile:
-    image: postgres:16-alpine
-    container_name: faberge-postgres-profile
-    environment:
-        POSTGRES_USER: ${POSTGRES_USER_PROFILE}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_PROFILE}
-        POSTGRES_DB: ${POSTGRES_DB_PROFILE}
-    ports:
-        - "${POSTGRES_PORT_PROFILE}:5432"
-    volumes:
-        - postgres_profile_data:/var/lib/postgresql/data
-        - ./postgres/profile_service/init_profile_db.sh:/docker-entrypoint-initdb.d/init_profile_db.sh:ro
-    healthcheck:
-        test:
-          [
-            "CMD-SHELL",
-            "pg_isready -U ${POSTGRES_USER_PROFILE} -d ${POSTGRES_DB_PROFILE}",
-          ]
-        interval: 5s
-        timeout: 5s
-        retries: 10
-
-
-  postgres-project:
-    image: postgres:16-alpine
-    container_name: faberge-postgres-project
-    environment:
-        POSTGRES_USER: ${POSTGRES_USER_PROJECT}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_PROJECT}
-        POSTGRES_DB: ${POSTGRES_DB_PROJECT}
-    ports:
-        - "${POSTGRES_PORT_PROJECT}:5432"
-    volumes:
-        - postgres_project_data:/var/lib/postgresql/data
-        - ./postgres/project_service/init_project_db.sh:/docker-entrypoint-initdb.d/init_project_db.sh:ro
-    healthcheck:
-        test:
-          [
-            "CMD-SHELL",
-            "pg_isready -U ${POSTGRES_USER_PROJECT} -d ${POSTGRES_DB_PROJECT}",
-          ]
-        interval: 5s
-        timeout: 5s
-        retries: 10
-
-
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_MEDIA} -d ${POSTGRES_DB_MEDIA}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   postgres-feed:
     image: postgres:16-alpine
     container_name: faberge-postgres-feed
     environment:
-        POSTGRES_USER: ${POSTGRES_USER_FEED}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_FEED}
-        POSTGRES_DB: ${POSTGRES_DB_FEED}
+      POSTGRES_USER: ${POSTGRES_USER_FEED}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_FEED}
+      POSTGRES_DB: ${POSTGRES_DB_FEED}
     ports:
-        - "${POSTGRES_PORT_FEED}:5432"
+      - "${POSTGRES_PORT_FEED}:5432"
     volumes:
-        - postgres_feed_data:/var/lib/postgresql/data
-        - ./postgres/feed_service/init_feed_db.sh:/docker-entrypoint-initdb.d/init_feed_db.sh:ro
+      - postgres_feed_data:/var/lib/postgresql/data
+      - ./postgres/feed_service/init_feed_db.sh:/docker-entrypoint-initdb.d/init_feed_db.sh:ro
     healthcheck:
-        test:
-          [
-            "CMD-SHELL",
-            "pg_isready -U ${POSTGRES_USER_FEED} -d ${POSTGRES_DB_FEED}",
-          ]
-        interval: 5s
-        timeout: 5s
-        retries: 10
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_FEED} -d ${POSTGRES_DB_FEED}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-profile:
+    image: postgres:16-alpine
+    container_name: faberge-postgres-profile
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER_PROFILE}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_PROFILE}
+      POSTGRES_DB: ${POSTGRES_DB_PROFILE}
+    ports:
+      - "${POSTGRES_PORT_PROFILE}:5432"
+    volumes:
+      - postgres_profile_data:/var/lib/postgresql/data
+      - ./postgres/profile_service/init_profile_db.sh:/docker-entrypoint-initdb.d/init_profile_db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_PROFILE} -d ${POSTGRES_DB_PROFILE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-project:
+    image: postgres:16-alpine
+    container_name: faberge-postgres-project
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER_PROJECT}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_PROJECT}
+      POSTGRES_DB: ${POSTGRES_DB_PROJECT}
+    ports:
+      - "${POSTGRES_PORT_PROJECT}:5432"
+    volumes:
+      - postgres_project_data:/var/lib/postgresql/data
+      - ./postgres/project_service/init_project_db.sh:/docker-entrypoint-initdb.d/init_project_db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_PROJECT} -d ${POSTGRES_DB_PROJECT}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-response:
+    image: postgres:16-alpine
+    container_name: faberge-postgres-response
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER_RESPONSE}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_RESPONSE}
+      POSTGRES_DB: ${POSTGRES_DB_RESPONSE}
+    ports:
+      - "${POSTGRES_PORT_RESPONSE}:5432"
+    volumes:
+      - postgres_response_data:/var/lib/postgresql/data
+      - ./postgres/response_service/init_response_db.sh:/docker-entrypoint-initdb.d/init_response_db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_RESPONSE} -d ${POSTGRES_DB_RESPONSE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 
   redis:
     image: redis:7-alpine
     container_name: faberge-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
-    networks:
-      - faberge_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -200,23 +186,21 @@ services:
         mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
         mc mb "local/$$MEDIA_S3_BUCKET" --ignore-existing
 
-  postgres_keycloak:
-    image: postgres:15-alpine
-    container_name: auth_postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: keycloak
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: keycloak_password
+
+
+
+  auth-init:
+    image: ${AUTH_IMAGE:-inchanterx/faberge-auth-service}:${VERSION:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    container_name: auth-init
+    restart: "no"
+    command:
+      - "sh"
+      - "-c"
+      - "cp -r /app/keycloak-export/* /shared-export/ 2>/dev/null || true"
     volumes:
-      - keycloak_postgres_data:/var/lib/postgresql/data
-    networks:
-      - faberge_network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keycloak"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - keycloak_shared_export:/shared-export
 
   keycloak:
     image: quay.io/keycloak/keycloak:latest
@@ -225,10 +209,10 @@ services:
     command: start-dev --import-realm
     environment:
       KC_DB: postgres
-      KC_DB_URL_HOST: postgres_keycloak
-      KC_DB_URL_DATABASE: keycloak
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: keycloak_password
+      KC_DB_URL_HOST: postgres-keycloak
+      KC_DB_URL_DATABASE: ${POSTGRES_DB_KEYCLOAK:-keycloak}
+      KC_DB_USERNAME: ${POSTGRES_USER_KEYCLOAK:-keycloak}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD_KEYCLOAK:-keycloak_password}
       KC_HOSTNAME: localhost
       KC_HTTP_ENABLED: "true"
       KC_HTTP_PORT: 8080
@@ -237,76 +221,48 @@ services:
     ports:
       - "8082:8080"
     depends_on:
-      postgres_keycloak:
+      postgres-keycloak:
         condition: service_healthy
       auth-init:
         condition: service_completed_successfully
     volumes:
-      - ${KEYCLOAK_EXPORT_VOLUME:-keycloak_shared_export:/opt/keycloak/data/import:ro}
+      - ${KEYCLOAK_EXPORT_VOLUME:-keycloak_shared_export}:/opt/keycloak/data/import:ro
       - keycloak_data:/opt/keycloak/data
-    networks:
-      - faberge_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
-  gateway:
-    image: ${GATEWAY_IMAGE:-inchanterx/faberge-apigateway}:${VERSION:-latest}
-    platform: linux/amd64
-    pull_policy: always
-    ports:
-      - "8080:8080"
-    depends_on:
-      - auth
-      - project
 
-  frontend:
-    image: ${FRONTEND_IMAGE:-inchanterx/faberge-frontend}:${VERSION:-latest}
-    build:
-      context: ${FRONTEND_BUILD_CONTEXT:-.}
-    volumes:
-      - ${FRONTEND_VOLUME:-/dev/null:/dev/null}
-    ports:
-      - "3000:3000"
-    depends_on:
-      - gateway
 
-  auth-init:
-    image: ${AUTH_IMAGE:-inchanterx/faberge-auth-service}:${VERSION:-latest}
-    container_name: auth-init
-    restart: "no"
-    command:
-      [
-        "sh",
-        "-c",
-        "cp -r /app/keycloak-export/* /shared-export/ 2>/dev/null || true",
-      ]
-    volumes:
-      - keycloak_shared_export:/shared-export
 
   auth:
-    image: ${AUTH_IMAGE:-inchanterx/faberge-auth-service}:${VERSION:-latest} # aaa
+    platform: linux/amd64
+    image: ${AUTH_IMAGE:-inchanterx/faberge-auth-service}:${VERSION:-latest}
     build:
       context: ${AUTH_BUILD_CONTEXT:-.}
     container_name: auth
     restart: unless-stopped
-    environment:
-      KEYCLOAK_BASE_URL: http://keycloak:8080
-      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-myrealm}
-      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-auth-service}
-      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-nmeYwMzWRHuLb7V5iCnF9T8vQ2TlW3af}
-      KEYCLOAK_ISSUER: http://keycloak:8080/realms/${KEYCLOAK_REALM:-myrealm}
-      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-auth-service}
     pull_policy: always
     ports:
       - "8001:8000"
-    depends_on:
-      keycloak:
-        condition: service_started
     volumes:
       - ${AUTH_VOLUME:-/dev/null:/dev/null}
     depends_on:
       postgres-auth:
         condition: service_healthy
+      keycloak:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER_AUTH}:${POSTGRES_PASSWORD_AUTH}@postgres-auth:5432/${POSTGRES_DB_AUTH}
+      KEYCLOAK_BASE_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-myrealm}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-auth-service}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+      KEYCLOAK_ISSUER: http://keycloak:8080/realms/${KEYCLOAK_REALM:-myrealm}
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-auth-service}
 
   project:
     <<: *service-defaults
@@ -377,8 +333,8 @@ services:
         condition: service_completed_successfully
     environment:
       S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       S3_BUCKET: ${MEDIA_S3_BUCKET:-media}
       S3_REGION: ${S3_REGION:-us-east-1}
 
@@ -396,17 +352,40 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER_RESPONSE}:${POSTGRES_PASSWORD_RESPONSE}@postgres-response:5432/${POSTGRES_DB_RESPONSE}
 
-networks:
-  faberge_network:
-    driver: bridge
+
+
+
+  gateway:
+    image: ${GATEWAY_IMAGE:-inchanterx/faberge-apigateway}:${VERSION:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth
+      - project
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-inchanterx/faberge-frontend}:${VERSION:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    build:
+      context: ${FRONTEND_BUILD_CONTEXT:-.}
+    volumes:
+      - ${FRONTEND_VOLUME:-/dev/null:/dev/null}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - gateway
 
 volumes:
   postgres_auth_data:
+  postgres_keycloak_data:
   postgres_media_data:
-  postgres_response_data:
+  postgres_feed_data:
   postgres_profile_data:
   postgres_project_data:
-  postgres_feed_data:
+  postgres_response_data:
   redis_data:
   minio_data:
   keycloak_postgres_data:
