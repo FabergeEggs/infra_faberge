@@ -2,6 +2,7 @@ name: faberge_latest_compose
 
 x-service-defaults: &service-defaults
   pull_policy: always
+  platform: linux/amd64
   expose:
     - "8000"
   healthcheck:
@@ -11,27 +12,142 @@ x-service-defaults: &service-defaults
     retries: 5
 
 services:
-  postgres:
+  postgres-auth:
     image: postgres:16-alpine
-    container_name: faberge-postgres
+    container_name: faberge-postgres-auth
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-faberge}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-faberge_dev}
-      POSTGRES_DB: ${POSTGRES_DB:-faberge}
+        POSTGRES_USER: ${POSTGRES_USER_AUTH}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_AUTH}
+        POSTGRES_DB: ${POSTGRES_DB_AUTH}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+        - "${POSTGRES_PORT_AUTH}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/01-init-multiple-databases.sh:ro
+        - postgres_auth_data:/var/lib/postgresql/data
+        - ./postgres/auth_service/init_auth_db.sh:/docker-entrypoint-initdb.d/init_auth_db.sh:ro
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-faberge} -d ${POSTGRES_DB:-faberge}",
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+        test:
+          [
+            "CMD-SHELL",
+            "pg_isready -U ${POSTGRES_USER_AUTH} -d ${POSTGRES_DB_AUTH}",
+          ]
+        interval: 5s
+        timeout: 5s
+        retries: 10
+
+  postgres-media:
+    image: postgres:16-alpine
+    container_name: faberge-postgres-media
+    environment:
+        POSTGRES_USER: ${POSTGRES_USER_MEDIA}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_MEDIA}
+        POSTGRES_DB: ${POSTGRES_DB_MEDIA}
+    ports:
+        - "${POSTGRES_PORT_MEDIA}:5432"
+    volumes:
+        - postgres_media_data:/var/lib/postgresql/data
+        - ./postgres/media_service/init_media_db.sh:/docker-entrypoint-initdb.d/init_media_db.sh:ro
+    healthcheck:
+        test:
+          [
+            "CMD-SHELL",
+            "pg_isready -U ${POSTGRES_USER_MEDIA} -d ${POSTGRES_DB_MEDIA}",
+          ]
+        interval: 5s
+        timeout: 5s
+        retries: 10
+
+
+  postgres-response:
+    image: postgres:16-alpine
+    container_name: faberge-postgres-response
+    environment:
+        POSTGRES_USER: ${POSTGRES_USER_RESPONSE}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_RESPONSE}
+        POSTGRES_DB: ${POSTGRES_DB_RESPONSE}
+    ports:
+        - "${POSTGRES_PORT_RESPONSE}:5432"
+    volumes:
+        - postgres_response_data:/var/lib/postgresql/data
+        - ./postgres/response_service/init_response_db.sh:/docker-entrypoint-initdb.d/init_response_db.sh:ro
+    healthcheck:
+        test:
+          [
+            "CMD-SHELL",
+            "pg_isready -U ${POSTGRES_USER_RESPONSE} -d ${POSTGRES_DB_RESPONSE}",
+          ]
+        interval: 5s
+        timeout: 5s
+        retries: 10
+
+
+  postgres-profile:
+    image: postgres:16-alpine
+    container_name: faberge-postgres-profile
+    environment:
+        POSTGRES_USER: ${POSTGRES_USER_PROFILE}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_PROFILE}
+        POSTGRES_DB: ${POSTGRES_DB_PROFILE}
+    ports:
+        - "${POSTGRES_PORT_PROFILE}:5432"
+    volumes:
+        - postgres_profile_data:/var/lib/postgresql/data
+        - ./postgres/profile_service/init_profile_db.sh:/docker-entrypoint-initdb.d/init_profile_db.sh:ro
+    healthcheck:
+        test:
+          [
+            "CMD-SHELL",
+            "pg_isready -U ${POSTGRES_USER_PROFILE} -d ${POSTGRES_DB_PROFILE}",
+          ]
+        interval: 5s
+        timeout: 5s
+        retries: 10
+
+
+  postgres-project:
+    image: postgres:16-alpine
+    container_name: faberge-postgres-project
+    environment:
+        POSTGRES_USER: ${POSTGRES_USER_PROJECT}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_PROJECT}
+        POSTGRES_DB: ${POSTGRES_DB_PROJECT}
+    ports:
+        - "${POSTGRES_PORT_PROJECT}:5432"
+    volumes:
+        - postgres_project_data:/var/lib/postgresql/data
+        - ./postgres/project_service/init_project_db.sh:/docker-entrypoint-initdb.d/init_project_db.sh:ro
+    healthcheck:
+        test:
+          [
+            "CMD-SHELL",
+            "pg_isready -U ${POSTGRES_USER_PROJECT} -d ${POSTGRES_DB_PROJECT}",
+          ]
+        interval: 5s
+        timeout: 5s
+        retries: 10
+
+
+
+  postgres-feed:
+    image: postgres:16-alpine
+    container_name: faberge-postgres-feed
+    environment:
+        POSTGRES_USER: ${POSTGRES_USER_FEED}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_FEED}
+        POSTGRES_DB: ${POSTGRES_DB_FEED}
+    ports:
+        - "${POSTGRES_PORT_FEED}:5432"
+    volumes:
+        - postgres_feed_data:/var/lib/postgresql/data
+        - ./postgres/feed_service/init_feed_db.sh:/docker-entrypoint-initdb.d/init_feed_db.sh:ro
+    healthcheck:
+        test:
+          [
+            "CMD-SHELL",
+            "pg_isready -U ${POSTGRES_USER_FEED} -d ${POSTGRES_DB_FEED}",
+          ]
+        interval: 5s
+        timeout: 5s
+        retries: 10
 
   redis:
     image: redis:7-alpine
@@ -83,6 +199,7 @@ services:
 
   frontend:
     image: ${FRONTEND_IMAGE:-inchanterx/faberge-frontend}:${VERSION:-latest}
+    platform: linux/amd64
     pull_policy: always
     ports:
       - "3000:80"
@@ -91,6 +208,7 @@ services:
 
   gateway:
     image: ${GATEWAY_IMAGE:-inchanterx/faberge-apigateway}:${VERSION:-latest}
+    platform: linux/amd64
     pull_policy: always
     ports:
       - "8080:8080"
@@ -106,6 +224,11 @@ services:
     volumes:
       - ${AUTH_VOLUME:-/dev/null:/dev/null}
     container_name: auth
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER_AUTH}:${POSTGRES_PASSWORD_AUTH}@postgres-auth:5432/${POSTGRES_DB_AUTH}
 
   project:
     <<: *service-defaults
@@ -116,10 +239,10 @@ services:
       - ${PROJECT_VOLUME:-/dev/null:/dev/null}
     container_name: project
     depends_on:
-      postgres:
+      postgres-project:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/project_db
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER_PROJECT}:${POSTGRES_PASSWORD_PROJECT}@postgres-project:5432/${POSTGRES_DB_PROJECT}
 
   feed:
     <<: *service-defaults
@@ -129,13 +252,15 @@ services:
     volumes:
       - ${FEED_VOLUME:-/dev/null:/dev/null}
     container_name: feed
+    healthcheck:
+      disable: true
     depends_on:
-      postgres:
+      postgres-feed:
         condition: service_healthy
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/feed_db
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER_FEED}:${POSTGRES_PASSWORD_FEED}@postgres-feed:5432/${POSTGRES_DB_FEED}
       REDIS_URL: redis://redis:6379/0
 
   profile:
@@ -147,10 +272,10 @@ services:
       - ${PROFILE_VOLUME:-/dev/null:/dev/null}
     container_name: profile
     depends_on:
-      postgres:
+      postgres-profile:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/profile_db
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER_PROFILE}:${POSTGRES_PASSWORD_PROFILE}@postgres-profile:5432/${POSTGRES_DB_PROFILE}
 
   media:
     <<: *service-defaults
@@ -160,15 +285,22 @@ services:
     volumes:
       - ${MEDIA_VOLUME:-/dev/null:/dev/null}
     container_name: media
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/media/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     depends_on:
+      postgres-media:
+        condition: service_healthy
       minio:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
     environment:
       S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       S3_BUCKET: ${MEDIA_S3_BUCKET:-media}
       S3_REGION: ${S3_REGION:-us-east-1}
 
@@ -181,12 +313,17 @@ services:
       - ${RESPONSE_VOLUME:-/dev/null:/dev/null}
     container_name: response
     depends_on:
-      postgres:
+      postgres-response:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/response_db
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER_RESPONSE}:${POSTGRES_PASSWORD_RESPONSE}@postgres-response:5432/${POSTGRES_DB_RESPONSE}
 
 volumes:
-  postgres_data:
+  postgres_auth_data:
+  postgres_media_data:
+  postgres_response_data:
+  postgres_profile_data:
+  postgres_project_data:
+  postgres_feed_data:
   redis_data:
   minio_data:
