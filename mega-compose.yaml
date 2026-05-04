@@ -1,278 +1,280 @@
-name: faberge_latest_compose
-
-x-service-defaults: &service-defaults
-  pull_policy: always
-  expose:
-    - "8000"
-  healthcheck:
-    test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-    interval: 10s
-    timeout: 5s
-    retries: 5
+version: '3.8'
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: faberge-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: faberge
-      POSTGRES_USER: faberge
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-faberge_dev}
+  # ========== ИНФРАСТРУКТУРА ==========
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.18
+    container_name: redpanda
+    command:
+      - redpanda
+      - start
+      - --smp 1
+      - --overprovisioned
+      - --kafka-addr 0.0.0.0:9092
+      - --advertise-kafka-addr redpanda:9092
+      - --pandaproxy-addr 0.0.0.0:8085
+      - --advertise-pandaproxy-addr redpanda:8085
+      - --set
+      - redpanda.auto_create_topics_enabled=true
     ports:
-      - "5433:5433"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - "9092:9092"
+      - "9644:9644"
+      - "8085:8085"
     networks:
-      - faberge_network
+      - app-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U faberge"]
+      test: ["CMD", "rpk", "cluster", "health"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
 
   redis:
     image: redis:7-alpine
-    container_name: faberge-redis
-    restart: unless-stopped
+    container_name: redis
     ports:
       - "6379:6379"
+    networks:
+      - app-network
     volumes:
       - redis_data:/data
-    networks:
-      - faberge_network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
 
-  minio:
-    image: minio/minio:latest
-    container_name: faberge-minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-    ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
-    volumes:
-      - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  minio-init:
-    image: minio/mc:latest
-    container_name: faberge-minio-init
-    restart: "no"
-    depends_on:
-      minio:
-        condition: service_healthy
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      MEDIA_S3_BUCKET: ${MEDIA_S3_BUCKET:-media}
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
-        mc mb "local/$$MEDIA_S3_BUCKET" --ignore-existing
-
-  postgres_keycloak:
-    image: postgres:15-alpine
-    container_name: auth_postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: keycloak
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: keycloak_password
-    volumes:
-      - keycloak_postgres_data:/var/lib/postgresql/data
-    networks:
-      - faberge_network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keycloak"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
+  # ========== KEYCLOAK & AUTH ==========
   keycloak:
-    image: quay.io/keycloak/keycloak:26.4.0
-    container_name: auth_keycloak
-    restart: unless-stopped
-    command: start-dev --import-realm
-    environment:
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres_keycloak:5432/keycloak
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: keycloak_password
-      KC_HTTP_ENABLED: "true"
-      KC_HTTP_PORT: 8080
-      KC_HOSTNAME: localhost
-      KC_HOSTNAME_STRICT: "false"
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    image: quay.io/keycloak/keycloak:26.2.4
+    container_name: keycloak
     ports:
       - "8082:8080"
-    depends_on:
-      postgres_keycloak:
-        condition: service_healthy
-      auth-init:
-        condition: service_completed_successfully
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-myadmin}
+      KC_EMAIL_ENABLED: "true"
+      KC_EMAIL_HOST: mailhog
+      KC_EMAIL_PORT: 1025
+      KC_EMAIL_FROM: noreply@myapp.local
+      KC_EMAIL_FROM_DISPLAY_NAME: "My App Auth"
+      KC_EMAIL_AUTH_ENABLED: "false"
+      KC_EMAIL_SSL_ENABLED: "false"
+      KC_EMAIL_STARTTLS_ENABLED: "false"
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_LOG_LEVEL: DEBUG
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_STRICT_TRANSPORT_SECURITY: "disabled"
     volumes:
-      - ${KEYCLOAK_EXPORT_VOLUME:-keycloak_shared_export:/opt/keycloak/data/import:ro}
+      - ../auth_service/keycloak-export:/opt/keycloak/data/import:ro
       - keycloak_data:/opt/keycloak/data
+    command: start-dev --import-realm --hostname-strict=false --http-enabled=true
+    depends_on:
+      mailhog:
+        condition: service_started
     networks:
-      - faberge_network
+      - app-network
+    healthcheck:
+      test: ["CMD", "/opt/keycloak/bin/kc.sh", "show-config"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
-  gateway:
-    image: ${GATEWAY_IMAGE:-inchanterx/faberge-apigateway}:${VERSION:-latest}
-    pull_policy: always
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    volumes:
+      - mailhog_data:/maildir
+    networks:
+      - app-network
+
+  # ========== AUTH SERVICE ==========
+  auth-service:
+    build: ../auth_service
+    container_name: auth-service
+    ports:
+      - "8000:8000"
+    # env_file закомментирован или указывает на необязательный файл
+    # env_file:
+    #   - ../auth_service/.env
+    environment:
+      - ENVIRONMENT=${AUTH_ENVIRONMENT:-development}
+      - CORS_ORIGINS=${AUTH_CORS_ORIGINS:-["http://localhost:3000"]}
+      - KEYCLOAK_BASE_URL=${AUTH_KEYCLOAK_URL:-http://keycloak:8080}
+      - KEYCLOAK_REALM=${KEYCLOAK_REALM:-myrealm}
+      - KEYCLOAK_CLIENT_ID=${AUTH_KEYCLOAK_CLIENT_ID:-auth-service}
+      - KEYCLOAK_CLIENT_SECRET=${AUTH_KEYCLOAK_CLIENT_SECRET}
+      - KEYCLOAK_ADMIN_USERNAME=${KEYCLOAK_ADMIN_USERNAME:-admin}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-myadmin}
+      - KEYCLOAK_ADMIN_CLIENT_ID=${AUTH_KEYCLOAK_ADMIN_CLIENT_ID:-admin-cli}
+      - REFRESH_TOKEN_MAX_AGE=${AUTH_REFRESH_TOKEN_MAX_AGE:-2592000}
+      - SMTP_HOST=${AUTH_SMTP_HOST:-mailhog}
+      - SMTP_PORT=${AUTH_SMTP_PORT:-1025}
+      - REDPANDA_BOOTSTRAP_SERVERS=redpanda:9092
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+      redpanda:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  # ========== PROFILE SERVICE ==========
+  profile-service:
+    build: ../profile_service
+    container_name: profile-service
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    # env_file закомментирован
+    # env_file:
+    #   - ../profile_service/.env
+    environment:
+      - KEYCLOAK_URL=${PROFILE_KEYCLOAK_URL:-http://keycloak:8080}
+      - KEYCLOAK_REALM=${KEYCLOAK_REALM:-myrealm}
+      - KEYCLOAK_CLIENT_ID=${PROFILE_KEYCLOAK_CLIENT_ID:-account}
+      - KEYCLOAK_CLIENT_SECRET=${PROFILE_KEYCLOAK_CLIENT_SECRET}
+      - DATABASE_URL=${PROFILE_DATABASE_URL:-postgresql://profile_user:profile_pass@postgres-profile:5432/profile_db}
+      - REDPANDA_BOOTSTRAP_SERVERS=redpanda:9092
+      - REDPANDA_CONSUMER_GROUP=${PROFILE_REDPANDA_CONSUMER_GROUP:-profile-service-group}
+      - MEDIA_SERVICE_URL=${PROFILE_MEDIA_SERVICE_URL:-http://media-service:8000}
+      - SERVICE_ID=${PROFILE_SERVICE_ID:-profile-service}
+    depends_on:
+      postgres-profile:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  postgres-profile:
+    image: postgres:15-alpine
+    container_name: postgres-profile
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=profile_user
+      - POSTGRES_PASSWORD=profile_pass
+      - POSTGRES_DB=profile_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_profile_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U profile_user -d profile_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  media-service:
+    image: python:3.11-slim
+    container_name: profile-media-service
+    restart: unless-stopped
+    working_dir: /app
+    command: python -m http.server 8000
+    ports:
+      - "8002:8000"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ========== PROJECT SERVICE ==========
+  project-service:
+    build: ../project_service
+    container_name: project-service
+    restart: unless-stopped
+    ports:
+      - "8003:8000"
+    environment:
+      - DATABASE_URL=${PROJECT_DATABASE_URL:-postgresql://user:password@postgres-project:5432/project_db}
+      - REDPANDA_BOOTSTRAP_SERVERS=redpanda:9092
+    depends_on:
+      postgres-project:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    networks:
+      - app-network
+    command: >
+      sh -c "
+        echo 'Running migrations...' &&
+        uv run alembic upgrade head &&
+        echo 'Starting service...' &&
+        uv run -m src.main run
+      "
+
+  postgres-project:
+    image: postgres:15-alpine
+    container_name: postgres-project
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=project_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_project_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d project_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========== GATEWAY ==========
+  api-gateway:
+    build: ../apigateway
+    container_name: api-gateway
+    restart: unless-stopped
     ports:
       - "8080:8080"
     depends_on:
-      - auth
-      - project
+      - auth-service
+      - profile-service
+      - project-service
+    networks:
+      - app-network
 
+  # ========== FRONTEND ==========
   frontend:
-    image: ${FRONTEND_IMAGE:-inchanterx/faberge-frontend}:${VERSION:-latest}
     build:
-      context: ${FRONTEND_BUILD_CONTEXT:-.}
-    volumes:
-      - ${FRONTEND_VOLUME:-/dev/null:/dev/null}
+      context: ../frontend
+      target: dev
+    container_name: frontend
+    restart: unless-stopped
     ports:
       - "3000:3000"
-    depends_on:
-      - gateway
-
-  auth-init:
-    image: ${AUTH_IMAGE:-inchanterx/faberge-auth-service}:${VERSION:-latest}
-    container_name: auth-init
-    restart: "no"
-    command:
-      [
-        "sh",
-        "-c",
-        "cp -r /app/keycloak-export/* /shared-export/ 2>/dev/null || true",
-      ]
-    volumes:
-      - keycloak_shared_export:/shared-export
-
-  auth:
-    image: ${AUTH_IMAGE:-inchanterx/faberge-auth-service}:${VERSION:-latest} # aaa
-    build:
-      context: ${AUTH_BUILD_CONTEXT:-.}
-    container_name: auth
-    restart: unless-stopped
     environment:
-      KEYCLOAK_BASE_URL: http://keycloak:8080
-      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-myrealm}
-      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-auth-service}
-      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-nmeYwMzWRHuLb7V5iCnF9T8vQ2TlW3af}
-      KEYCLOAK_ISSUER: http://keycloak:8080/realms/${KEYCLOAK_REALM:-myrealm}
-      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-auth-service}
-    pull_policy: always
-    ports:
-      - "8001:8000"
-    depends_on:
-      keycloak:
-        condition: service_started
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080}
     volumes:
-      - ${AUTH_VOLUME:-/dev/null:/dev/null}
+      - ../frontend:/frontend
+      - /frontend/node_modules
+    depends_on:
+      - api-gateway
     networks:
-      - faberge_network
-
-  project:
-    <<: *service-defaults
-    image: ${PROJECT_IMAGE:-inchanterx/faberge-project-service}:${VERSION:-latest}
-    build:
-      context: ${PROJECT_BUILD_CONTEXT:-.}
-    volumes:
-      - ${PROJECT_VOLUME:-/dev/null:/dev/null}
-    container_name: project
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/project_db
-
-  feed:
-    <<: *service-defaults
-    image: ${FEED_IMAGE:-inchanterx/faberge-feed-service}:${VERSION:-latest}
-    build:
-      context: ${FEED_BUILD_CONTEXT:-.}
-    volumes:
-      - ${FEED_VOLUME:-/dev/null:/dev/null}
-    container_name: feed
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/feed_db
-      REDIS_URL: redis://redis:6379/0
-
-  profile:
-    <<: *service-defaults
-    image: ${PROFILE_IMAGE:-inchanterx/faberge-profile-service}:${VERSION:-latest}
-    build:
-      context: ${PROFILE_BUILD_CONTEXT:-.}
-    volumes:
-      - ${PROFILE_VOLUME:-/dev/null:/dev/null}
-    container_name: profile
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/profile_db
-
-  media:
-    <<: *service-defaults
-    image: ${MEDIA_IMAGE:-inchanterx/faberge-media-service}:${VERSION:-latest}
-    build:
-      context: ${MEDIA_BUILD_CONTEXT:-.}
-    volumes:
-      - ${MEDIA_VOLUME:-/dev/null:/dev/null}
-    container_name: media
-    depends_on:
-      minio:
-        condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
-    environment:
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      S3_BUCKET: ${MEDIA_S3_BUCKET:-media}
-      S3_REGION: ${S3_REGION:-us-east-1}
-
-  response:
-    <<: *service-defaults
-    image: ${RESPONSE_IMAGE:-inchanterx/faberge-response-service}:${VERSION:-latest}
-    build:
-      context: ${RESPONSE_BUILD_CONTEXT:-.}
-    volumes:
-      - ${RESPONSE_VOLUME:-/dev/null:/dev/null}
-    container_name: response
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-faberge}:${POSTGRES_PASSWORD:-faberge_dev}@postgres:5432/response_db
+      - app-network
 
 networks:
-  faberge_network:
+  app-network:
     driver: bridge
 
 volumes:
-  postgres_data:
+  redpanda_data:
   redis_data:
-  minio_data:
-  keycloak_postgres_data:
+  mailhog_data:
   keycloak_data:
-  keycloak_shared_export:
+  postgres_profile_data:
+  postgres_project_data:
