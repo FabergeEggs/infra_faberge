@@ -243,57 +243,55 @@ services:
       retries: 5
 
   # ========== FEED SERVICE (ELIXIR) ==========
-  # feed-service:
-  #   build: ../feed_service
-  #   container_name: feed-service
-  #   restart: unless-stopped
-  #   ports:
-  #     - "4000:4000"
-  #   environment:
-  #     - PHX_SERVER=true
-  #     - PORT=4000
-  #     - PHX_HOST=localhost
-  #     - DATABASE_URL=ecto://feed_user:feed_pass@postgres-feed:5432/feed_db
-  #     - REDIS_URL=redis://redis:6379/0
-  #     - KAFKA_BROKERS=redpanda:9092
-  #     - KAFKA_GROUP_ID=feed-service
-  #     - MEDIA_SERVICE_URL=http://media-service:8000
-  #     - MEDIA_SERVICE_TOKEN=${FEED_MEDIA_SERVICE_TOKEN:-dev-feed-token}
-  #     - PROJECT_SERVICE_URL=http://project-service:8000
-  #     - PROFILE_SERVICE_URL=http://profile-service:8000
-  #     - SECRET_KEY_BASE=${FEED_SECRET_KEY_BASE:-Sgt9H/TFKx01E440+d+MzepoQc+WsHmf/l2njsCgCwCun8hqYFxL4KSw/cWuxsnT}
-  #     - MIX_ENV=prod
-  #     - LANG=C.UTF-8
-  #     - LOG_LEVEL=info
-  #   depends_on:
-  #     postgres-feed:
-  #       condition: service_healthy
-  #     redpanda:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_started
-  #   networks:
-  #     - app-network
+  feed-service:
+    build: ../feed_service
+    container_name: feed-service
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - PHX_SERVER=true
+      - PORT=4000
+      - PHX_HOST=localhost
+      - DATABASE_URL=ecto://feed_user:feed_pass@postgres-feed:5432/feed_db
+      - REDIS_URL=redis://redis:6379/0
+      - KAFKA_BROKERS=redpanda:9092
+      - KAFKA_GROUP_ID=feed-service
+      - MEDIA_SERVICE_URL=http://media-service:8000
+      - PROJECT_SERVICE_URL=http://project-service:8000
+      - PROFILE_SERVICE_URL=http://profile-service:8000
+      - MIX_ENV=prod
+      - LANG=C.UTF-8
+      - LOG_LEVEL=info
+    depends_on:
+      postgres-feed:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - app-network
 
-  # postgres-feed:
-  #   image: postgres:15-alpine
-  #   container_name: postgres-feed
-  #   restart: unless-stopped
-  #   environment:
-  #     - POSTGRES_USER=feed_user
-  #     - POSTGRES_PASSWORD=feed_pass
-  #     - POSTGRES_DB=feed_db
-  #   ports:
-  #     - "5435:5432"
-  #   volumes:
-  #     - postgres_feed_data:/var/lib/postgresql/data
-  #   networks:
-  #     - app-network
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U feed_user -d feed_db"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
+  postgres-feed:
+    image: postgres:15-alpine
+    container_name: postgres-feed
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=feed_user
+      - POSTGRES_PASSWORD=feed_pass
+      - POSTGRES_DB=feed_db
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_feed_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U feed_user -d feed_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ========== GATEWAY ==========
   api-gateway:
@@ -340,4 +338,4 @@ volumes:
   keycloak_data:
   postgres_profile_data:
   postgres_project_data:
-  # postgres_feed_data:
+  postgres_feed_data:
