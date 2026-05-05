@@ -115,6 +115,12 @@ services:
       - SMTP_HOST=${AUTH_SMTP_HOST:-mailhog}
       - SMTP_PORT=${AUTH_SMTP_PORT:-1025}
       - REDPANDA_BOOTSTRAP_SERVERS=redpanda:9092
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     depends_on:
       keycloak:
         condition: service_healthy
@@ -368,11 +374,16 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - auth-service
-      - profile-service
-      - project-service
-      - feed-service
-      - media-service
+      auth-service:
+        condition: service_healthy
+      profile-service:
+        condition: service_started
+      project-service:
+        condition: service_started
+      feed-service:
+        condition: service_started
+      media-service:
+        condition: service_started
     networks:
       - app-network
 
