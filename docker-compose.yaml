@@ -66,7 +66,8 @@ services:
       KC_HOSTNAME_STRICT: "false"
       KC_STRICT_TRANSPORT_SECURITY: "disabled"
     volumes:
-      - ../auth_service/keycloak-export:/opt/keycloak/data/import:ro
+      - ./keycloak-export:/opt/keycloak/data/import:ro
+      - ./keycloak-themes:/opt/keycloak/themes:ro
       - keycloak_data:/opt/keycloak/data
     command: start-dev --import-realm --hostname-strict=false --http-enabled=true
     depends_on:
