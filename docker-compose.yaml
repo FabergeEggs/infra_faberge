@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # ========== ИНФРАСТРУКТУРА ==========
@@ -24,7 +24,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "rpk", "cluster", "health"]
+      test: [ "CMD", "rpk", "cluster", "health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -75,7 +75,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "/opt/keycloak/bin/kc.sh", "show-config"]
+      test: [ "CMD", "/opt/keycloak/bin/kc.sh", "show-config" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -168,7 +168,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U profile_user -d profile_db"]
+      test: [ "CMD-SHELL", "pg_isready -U profile_user -d profile_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -184,7 +184,14 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000')"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request;
+            urllib.request.urlopen('http://localhost:8000')",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -216,11 +223,14 @@ services:
         condition: service_healthy
     networks:
       - app-network
-    command: [
-      "sh",
-      "-c",
-      "echo 'Running migrations...' && uv run -m src.main migrate 2>/dev/null || echo 'Migrations already applied, continuing...' && echo 'Starting project service...' && uv run -m src.main run"
-    ]
+    command:
+      [
+        "sh",
+        "-c",
+        "echo 'Running migrations...' && uv run -m src.main migrate
+          2>/dev/null || echo 'Migrations already applied, continuing...' &&
+          echo 'Starting project service...' && uv run -m src.main run",
+      ]
 
   postgres-project:
     image: postgres:15-alpine
@@ -237,7 +247,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d project_db"]
+      test: [ "CMD-SHELL", "pg_isready -U user -d project_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -254,6 +264,7 @@ services:
       - PORT=4000
       - PHX_HOST=localhost
       - DATABASE_URL=ecto://feed_user:feed_pass@postgres-feed:5432/feed_db
+      - SECRET_KEY_BASE=${FEED_SECRET_KEY_BASE:?Missing SECRET_KEY_BASE}
       - REDIS_URL=redis://redis:6379/0
       - KAFKA_BROKERS=redpanda:9092
       - KAFKA_GROUP_ID=feed-service
@@ -288,7 +299,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U feed_user -d feed_db"]
+      test: [ "CMD-SHELL", "pg_isready -U feed_user -d feed_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
