@@ -250,18 +250,28 @@ services:
   #   ports:
   #     - "4000:4000"
   #   environment:
-  #     - PORT=4000
   #     - PHX_SERVER=true
-  #     - DATABASE_URL=postgresql://feed_user:feed_pass@postgres-feed:5432/feed_db
-  #     - REDPANDA_BOOTSTRAP_SERVERS=redpanda:9092
+  #     - PORT=4000
+  #     - PHX_HOST=localhost
+  #     - DATABASE_URL=ecto://feed_user:feed_pass@postgres-feed:5432/feed_db
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - KAFKA_BROKERS=redpanda:9092
+  #     - KAFKA_GROUP_ID=feed-service
+  #     - MEDIA_SERVICE_URL=http://media-service:8000
+  #     - MEDIA_SERVICE_TOKEN=${FEED_MEDIA_SERVICE_TOKEN:-dev-feed-token}
+  #     - PROJECT_SERVICE_URL=http://project-service:8000
+  #     - PROFILE_SERVICE_URL=http://profile-service:8000
+  #     - SECRET_KEY_BASE=${FEED_SECRET_KEY_BASE:-Sgt9H/TFKx01E440+d+MzepoQc+WsHmf/l2njsCgCwCun8hqYFxL4KSw/cWuxsnT}
   #     - MIX_ENV=prod
   #     - LANG=C.UTF-8
-  #     - LC_ALL=C.UTF-8
+  #     - LOG_LEVEL=info
   #   depends_on:
   #     postgres-feed:
   #       condition: service_healthy
   #     redpanda:
   #       condition: service_healthy
+  #     redis:
+  #       condition: service_started
   #   networks:
   #     - app-network
 
