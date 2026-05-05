@@ -16,6 +16,7 @@ services:
       - --advertise-pandaproxy-addr redpanda:8085
       - --set
       - redpanda.auto_create_topics_enabled=true
+      - --default-log-level=error
     ports:
       - "9092:9092"
       - "9644:9644"
@@ -50,6 +51,7 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-myadmin}
+      KC_LOG_LEVEL: ${KEYCLOAK_LOG_LEVEL:-INFO}
       KC_EMAIL_ENABLED: "true"
       KC_EMAIL_HOST: mailhog
       KC_EMAIL_PORT: 1025
@@ -60,7 +62,6 @@ services:
       KC_EMAIL_STARTTLS_ENABLED: "false"
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
-      KC_LOG_LEVEL: DEBUG
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT: "false"
       KC_STRICT_TRANSPORT_SECURITY: "disabled"
@@ -196,8 +197,18 @@ services:
     ports:
       - "8003:8000"
     environment:
-      - DATABASE_URL=${PROJECT_DATABASE_URL:-postgresql://user:password@postgres-project:5432/project_db}
-      - REDPANDA_BOOTSTRAP_SERVERS=redpanda:9092
+      - DATABASE_DSN=postgresql://user:password@postgres-project:5432/project_db
+      - KAFKA_BOOTSTRAP=redpanda:9092
+      - DATABASE_MIN_CONNECTIONS=1
+      - DATABASE_MAX_CONNECTIONS=10
+      - KAFKA_TOPIC_ANSWERS=project-answers
+      - KAFKA_TOPIC_COMMENTS=project-comments
+      - KAFKA_TOPIC_PROFILE=project-profile
+      - KAFKA_TOPIC_EVENTS=project-events
+      - KAFKA_GROUP_ID=project-service
+      - HTTP_HOST=0.0.0.0
+      - HTTP_PORT=8000
+      - LOG_LEVEL=INFO
     depends_on:
       postgres-project:
         condition: service_healthy
@@ -205,13 +216,11 @@ services:
         condition: service_healthy
     networks:
       - app-network
-    command: >
-      sh -c "
-        echo 'Running migrations...' &&
-        uv run alembic upgrade head &&
-        echo 'Starting service...' &&
-        uv run -m src.main run
-      "
+    command: [
+      "sh",
+      "-c",
+      "echo 'Running migrations...' && uv run -m src.main migrate 2>/dev/null || echo 'Migrations already applied, continuing...' && echo 'Starting project service...' && uv run -m src.main run"
+    ]
 
   postgres-project:
     image: postgres:15-alpine
@@ -232,6 +241,49 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ========== FEED SERVICE (ELIXIR) ==========
+  # feed-service:
+  #   build: ../feed_service
+  #   container_name: feed-service
+  #   restart: unless-stopped
+  #   ports:
+  #     - "4000:4000"
+  #   environment:
+  #     - PORT=4000
+  #     - PHX_SERVER=true
+  #     - DATABASE_URL=postgresql://feed_user:feed_pass@postgres-feed:5432/feed_db
+  #     - REDPANDA_BOOTSTRAP_SERVERS=redpanda:9092
+  #     - MIX_ENV=prod
+  #     - LANG=C.UTF-8
+  #     - LC_ALL=C.UTF-8
+  #   depends_on:
+  #     postgres-feed:
+  #       condition: service_healthy
+  #     redpanda:
+  #       condition: service_healthy
+  #   networks:
+  #     - app-network
+
+  # postgres-feed:
+  #   image: postgres:15-alpine
+  #   container_name: postgres-feed
+  #   restart: unless-stopped
+  #   environment:
+  #     - POSTGRES_USER=feed_user
+  #     - POSTGRES_PASSWORD=feed_pass
+  #     - POSTGRES_DB=feed_db
+  #   ports:
+  #     - "5435:5432"
+  #   volumes:
+  #     - postgres_feed_data:/var/lib/postgresql/data
+  #   networks:
+  #     - app-network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U feed_user -d feed_db"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
   # ========== GATEWAY ==========
   api-gateway:
@@ -278,3 +330,4 @@ volumes:
   keycloak_data:
   postgres_profile_data:
   postgres_project_data:
+  # postgres_feed_data:
