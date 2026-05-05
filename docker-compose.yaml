@@ -173,29 +173,6 @@ services:
       timeout: 5s
       retries: 5
 
-  media-service:
-    image: python:3.11-slim
-    container_name: profile-media-service
-    restart: unless-stopped
-    working_dir: /app
-    command: python -m http.server 8000
-    ports:
-      - "8002:8000"
-    networks:
-      - app-network
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request;
-            urllib.request.urlopen('http://localhost:8000')",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   # ========== PROJECT SERVICE ==========
   project-service:
     build: ../project_service
@@ -304,6 +281,85 @@ services:
       timeout: 5s
       retries: 5
 
+  # ========== MEDIA SERVICE (ELIXIR) ==========
+  media-service:
+    build: ../media_service
+    container_name: media-service
+    restart: unless-stopped
+    ports:
+      - "8004:8000"
+    environment:
+      - PHX_SERVER=true
+      - PORT=8000
+      - PHX_HOST=localhost
+      - DATABASE_URL=ecto://media_user:media_pass@postgres-media:5432/media_db
+      - SECRET_KEY_BASE=${MEDIA_SECRET_KEY_BASE:?Missing MEDIA_SECRET_KEY_BASE}
+      - REDIS_URL=redis://redis:6379/0
+      - KAFKA_BROKERS=redpanda:9092
+      - KAFKA_GROUP_ID=media-service
+      - MIX_ENV=prod
+      - LANG=C.UTF-8
+      - LOG_LEVEL=info
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_BUCKET=media
+      - PROJECT_SERVICE_URL=http://project-service:8000
+      - PROFILE_SERVICE_URL=http://profile-service:8000
+    depends_on:
+      postgres-media:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  postgres-media:
+    image: postgres:15-alpine
+    container_name: postgres-media
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=media_user
+      - POSTGRES_PASSWORD=media_pass
+      - POSTGRES_DB=media_db
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres_media_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U media_user -d media_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000" # API port
+      - "9001:9001" # Console port
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - app-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   # ========== GATEWAY ==========
   api-gateway:
     build: ../apigateway
@@ -315,6 +371,8 @@ services:
       - auth-service
       - profile-service
       - project-service
+      - feed-service
+      - media-service
     networks:
       - app-network
 
@@ -350,3 +408,5 @@ volumes:
   postgres_profile_data:
   postgres_project_data:
   postgres_feed_data:
+  postgres_media_data:
+  minio_data:
