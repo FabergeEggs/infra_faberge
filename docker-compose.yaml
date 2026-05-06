@@ -151,6 +151,12 @@ services:
       - REDPANDA_CONSUMER_GROUP=${PROFILE_REDPANDA_CONSUMER_GROUP:-profile-service-group}
       - MEDIA_SERVICE_URL=${PROFILE_MEDIA_SERVICE_URL:-http://media-service:8000}
       - SERVICE_ID=${PROFILE_SERVICE_ID:-profile-service}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     depends_on:
       postgres-profile:
         condition: service_healthy
@@ -199,6 +205,12 @@ services:
       - HTTP_HOST=0.0.0.0
       - HTTP_PORT=8000
       - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/project/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     depends_on:
       postgres-project:
         condition: service_healthy
@@ -257,6 +269,12 @@ services:
       - MIX_ENV=prod
       - LANG=C.UTF-8
       - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
     depends_on:
       postgres-feed:
         condition: service_healthy
@@ -312,6 +330,12 @@ services:
       - MINIO_BUCKET=media
       - PROJECT_SERVICE_URL=http://project-service:8000
       - PROFILE_SERVICE_URL=http://profile-service:8000
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
     depends_on:
       postgres-media:
         condition: service_healthy
@@ -399,6 +423,9 @@ services:
     environment:
       - NODE_ENV=development
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+      - NEXT_PUBLIC_AUTH_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+      - NEXT_PUBLIC_PROFILE_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+      - NEXT_PUBLIC_PROJECTS_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080}
     volumes:
       - ../frontend:/frontend
       - /frontend/node_modules
