@@ -1,5 +1,5 @@
 services:
-  # ========== ИНФРАСТРУКТУРА ==========
+  # ========== Infrustructure ==========
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:v24.2.18
     container_name: redpanda
@@ -22,7 +22,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: [ "CMD", "rpk", "cluster", "health" ]
+      test: ["CMD", "rpk", "cluster", "health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -76,7 +76,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: [ "CMD", "/opt/keycloak/bin/kc.sh", "show-config" ]
+      test: ["CMD", "/opt/keycloak/bin/kc.sh", "show-config"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -99,9 +99,6 @@ services:
     container_name: auth-service
     ports:
       - "8000:8000"
-    # env_file закомментирован или указывает на необязательный файл
-    # env_file:
-    #   - ../auth_service/.env
     extra_hosts:
       - "localhost:host-gateway"
     environment:
@@ -135,9 +132,6 @@ services:
     restart: unless-stopped
     ports:
       - "8001:8000"
-    # env_file закомментирован
-    # env_file:
-    #   - ../profile_service/.env
     environment:
       - KEYCLOAK_URL=${PROFILE_KEYCLOAK_URL:-http://keycloak:8080}
       - KEYCLOAK_REALM=${KEYCLOAK_REALM:-myrealm}
@@ -173,7 +167,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U profile_user -d profile_db" ]
+      test: ["CMD-SHELL", "pg_isready -U profile_user -d profile_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -205,13 +199,12 @@ services:
         condition: service_healthy
     networks:
       - app-network
-    command:
-      [
+    command: [
         "sh",
         "-c",
         "echo 'Running migrations...' && uv run -m src.main migrate
-          2>/dev/null || echo 'Migrations already applied, continuing...' &&
-          echo 'Starting project service...' && uv run -m src.main run",
+        2>/dev/null || echo 'Migrations already applied, continuing...' &&
+        echo 'Starting project service...' && uv run -m src.main run",
       ]
 
   postgres-project:
@@ -229,7 +222,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U user -d project_db" ]
+      test: ["CMD-SHELL", "pg_isready -U user -d project_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -281,7 +274,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U feed_user -d feed_db" ]
+      test: ["CMD-SHELL", "pg_isready -U feed_user -d feed_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -338,7 +331,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U media_user -d media_db" ]
+      test: ["CMD-SHELL", "pg_isready -U media_user -d media_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -359,7 +352,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
       retries: 5
