@@ -378,6 +378,21 @@ services:
       timeout: 5s
       retries: 5
 
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin} &&
+        mc mb --ignore-existing local/media &&
+        echo 'MinIO bucket ready'
+      "
+    networks:
+      - app-network
+
   minio:
     image: minio/minio:latest
     container_name: minio
