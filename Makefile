@@ -1,5 +1,5 @@
-COMPOSE_FILE=mega-compose.yaml
-COMPOSE_CORE = -f mega-compose.yaml
+COMPOSE_FILE=docker-compose.yaml
+COMPOSE_CORE = -f docker-compose.yaml
 COMPOSE_FRONT_LOCAL = -f frontend-local-compose.yaml
 
 up:

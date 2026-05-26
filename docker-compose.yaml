@@ -127,6 +127,12 @@ services:
         condition: service_healthy
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # ========== PROFILE SERVICE ==========
   profile-service:
@@ -147,6 +153,7 @@ services:
       - REDPANDA_BOOTSTRAP_SERVERS=redpanda:9092
       - REDPANDA_CONSUMER_GROUP=${PROFILE_REDPANDA_CONSUMER_GROUP:-profile-service-group}
       - MEDIA_SERVICE_URL=${PROFILE_MEDIA_SERVICE_URL:-http://media-service:8000}
+      - MEDIA_SERVICE_TOKEN=${PROFILE_MEDIA_SERVICE_TOKEN:-dev-profile-token}
       - SERVICE_ID=${PROFILE_SERVICE_ID:-profile-service}
     extra_hosts:
       - "localhost:host-gateway"
@@ -157,6 +164,12 @@ services:
         condition: service_healthy
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   postgres-profile:
     image: postgres:15-alpine
@@ -205,6 +218,12 @@ services:
         condition: service_healthy
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/project/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     command:
       [
         "sh",
@@ -251,6 +270,7 @@ services:
       - KAFKA_BROKERS=redpanda:9092
       - KAFKA_GROUP_ID=feed-service
       - MEDIA_SERVICE_URL=http://media-service:8000
+      - MEDIA_SERVICE_TOKEN=${FEED_MEDIA_SERVICE_TOKEN:-dev-feed-token}
       - PROJECT_SERVICE_URL=http://project-service:8000
       - PROFILE_SERVICE_URL=http://profile-service:8000
       - MIX_ENV=prod
@@ -265,6 +285,12 @@ services:
         condition: service_started
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4000/api/v1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   postgres-feed:
     image: postgres:15-alpine
@@ -306,11 +332,14 @@ services:
       - LANG=C.UTF-8
       - LOG_LEVEL=info
       - MINIO_ENDPOINT=minio:9000
+      - MINIO_HOST=minio
+      - MINIO_API_PORT=9000
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
       - MINIO_BUCKET=media
       - PROJECT_SERVICE_URL=http://project-service:8000
       - PROFILE_SERVICE_URL=http://profile-service:8000
+      - MEDIA_SERVICE_TOKENS=feed-service:${FEED_MEDIA_SERVICE_TOKEN:-dev-feed-token},profile-service:${PROFILE_MEDIA_SERVICE_TOKEN:-dev-profile-token}
     depends_on:
       postgres-media:
         condition: service_healthy
@@ -322,6 +351,12 @@ services:
         condition: service_healthy
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   postgres-media:
     image: postgres:15-alpine
@@ -373,11 +408,16 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - auth-service
-      - profile-service
-      - project-service
-      - feed-service
-      - media-service
+      auth-service:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
+      project-service:
+        condition: service_healthy
+      feed-service:
+        condition: service_healthy
+      media-service:
+        condition: service_healthy
     networks:
       - app-network
 
