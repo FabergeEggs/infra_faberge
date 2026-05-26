@@ -227,6 +227,55 @@ services:
       timeout: 5s
       retries: 5
 
+  # ========== RESPONSE SERVICE ==========
+  response-service:
+    build: ../response_service
+    container_name: response-service
+    restart: unless-stopped
+    ports:
+      - "8005:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://response_user:response_pass@postgres-response:5432/response_db
+      - MIGRATIONS_DATABASE_URL=postgresql://response_user:response_pass@postgres-response:5432/response_db
+      - KAFKA_BOOTSTRAP_SERVERS=redpanda:9092
+      - KAFKA_CONSUMER_GROUP=${RESPONSE_REDPANDA_CONSUMER_GROUP:-response-service-group}
+      - MEDIA_SERVICE_URL=http://media-service:8000
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres-response:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    networks:
+      - app-network
+    command: [
+        "sh",
+        "-c",
+        "echo 'Running migrations...' && uv run -m src.migrations_cli up
+        2>/dev/null || echo 'Migrations already applied, continuing...' &&
+        echo 'Starting response service...' && uv run python -m uvicorn main:app --host 0.0.0.0 --port 8000",
+      ]
+
+  postgres-response:
+    image: postgres:15-alpine
+    container_name: postgres-response
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=response_user
+      - POSTGRES_PASSWORD=response_pass
+      - POSTGRES_DB=response_db
+    ports:
+      - "5437:5432"
+    volumes:
+      - postgres_response_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U response_user -d response_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ========== FEED SERVICE (ELIXIR) ==========
   feed-service:
     build: ../feed_service
@@ -371,6 +420,7 @@ services:
       - project-service
       - feed-service
       - media-service
+      - response-service
     networks:
       - app-network
 
@@ -405,6 +455,7 @@ volumes:
   keycloak_data:
   postgres_profile_data:
   postgres_project_data:
+  postgres_response_data:
   postgres_feed_data:
   postgres_media_data:
   minio_data:
