@@ -83,13 +83,14 @@ services:
       start_period: 30s
 
   mailhog:
-    image: mailhog/mailhog:latest
+    image: axllent/mailpit:latest
     container_name: mailhog
     ports:
-      - "1025:1025"
-      - "8025:8025"
-    volumes:
-      - mailhog_data:/maildir
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    environment:
+      - MP_SMTP_AUTH_ACCEPT_ANY=true
+      - MP_SMTP_AUTH_ALLOW_INSECURE=true
     networks:
       - app-network
 
@@ -107,7 +108,7 @@ services:
     environment:
       - ENVIRONMENT=${AUTH_ENVIRONMENT:-development}
       - CORS_ORIGINS=${AUTH_CORS_ORIGINS:-["http://localhost:3000"]}
-      - KEYCLOAK_BASE_URL=${AUTH_KEYCLOAK_URL:-http://keycloak:8082}
+      - KEYCLOAK_BASE_URL=${AUTH_KEYCLOAK_URL:-http://keycloak:8080}
       - KEYCLOAK_REALM=${KEYCLOAK_REALM:-myrealm}
       - KEYCLOAK_CLIENT_ID=${AUTH_KEYCLOAK_CLIENT_ID:-auth-service}
       - KEYCLOAK_CLIENT_SECRET=${AUTH_KEYCLOAK_CLIENT_SECRET}
@@ -127,12 +128,6 @@ services:
         condition: service_healthy
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
 
   # ========== PROFILE SERVICE ==========
   profile-service:
@@ -334,8 +329,18 @@ services:
       - MINIO_ENDPOINT=minio:9000
       - MINIO_HOST=minio
       - MINIO_API_PORT=9000
+      # Public host for presigned URLs — must be reachable by the browser.
+      # Override with your domain in production (e.g. s3.example.com).
+      - MINIO_PUBLIC_HOST=${MINIO_PUBLIC_HOST:-localhost}
+      - MINIO_PUBLIC_PORT=${MINIO_PUBLIC_PORT:-9000}
+      # Gateway base URL for server-side upload proxy URLs returned to the browser.
+      # The browser will PUT the file to <this>/api/v1/media/me/uploads/{id}/data.
+      - MEDIA_PUBLIC_GATEWAY_URL=${MEDIA_PUBLIC_GATEWAY_URL:-http://localhost:8080}
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      # runtime.exs checks MINIO_ROOT_USER / MINIO_ROOT_PASSWORD (not MINIO_ACCESS_KEY/SECRET_KEY)
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
       - MINIO_BUCKET=media
       - PROJECT_SERVICE_URL=http://project-service:8000
       - PROFILE_SERVICE_URL=http://profile-service:8000
@@ -388,7 +393,9 @@ services:
       sh -c "
         mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin} &&
         mc mb --ignore-existing local/media &&
-        echo 'MinIO bucket ready'
+        printf '{\"CORSRules\":[{\"AllowedOrigins\":[\"*\"],\"AllowedMethods\":[\"GET\",\"PUT\",\"HEAD\",\"DELETE\"],\"AllowedHeaders\":[\"*\"],\"ExposeHeaders\":[\"ETag\"],\"MaxAgeSeconds\":3600}]}' > /tmp/cors.json &&
+        mc cors set local/media /tmp/cors.json &&
+        echo 'MinIO bucket and CORS ready'
       "
     networks:
       - app-network
@@ -415,6 +422,55 @@ services:
       retries: 5
       start_period: 15s
 
+  # ========== RESPONSE SERVICE ==========
+  postgres-response:
+    image: postgres:15-alpine
+    container_name: postgres-response
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=response_service
+    ports:
+      - "5437:5432"
+    volumes:
+      - postgres_response_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d response_service" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  response-service:
+    build: ../response_service
+    container_name: response-service
+    restart: unless-stopped
+    ports:
+      - "8005:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres-response:5432/response_service
+      - MIGRATIONS_DATABASE_URL=postgresql://postgres:postgres@postgres-response:5432/response_service
+      - RUN_DB_MIGRATIONS_ON_STARTUP=true
+      - KAFKA_BOOTSTRAP_SERVERS=redpanda:9092
+      - KAFKA_CONSUMER_GROUP=response-service-group
+      - MEDIA_SERVICE_URL=http://media-service:8000
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres-response:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   # ========== GATEWAY ==========
   api-gateway:
     build: ../apigateway
@@ -424,7 +480,7 @@ services:
       - "8080:8080"
     depends_on:
       auth-service:
-        condition: service_healthy
+        condition: service_started
       profile-service:
         condition: service_healthy
       project-service:
@@ -432,6 +488,8 @@ services:
       feed-service:
         condition: service_healthy
       media-service:
+        condition: service_healthy
+      response-service:
         condition: service_healthy
     networks:
       - app-network
@@ -463,10 +521,11 @@ networks:
 volumes:
   redpanda_data:
   redis_data:
-  mailhog_data:
+  # mailhog_data: replaced by mailpit (no persistent volume needed)
   keycloak_data:
   postgres_profile_data:
   postgres_project_data:
   postgres_feed_data:
   postgres_media_data:
+  postgres_response_data:
   minio_data:
