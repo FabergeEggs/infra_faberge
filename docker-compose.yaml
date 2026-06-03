@@ -76,7 +76,7 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
       KC_HTTP_ENABLED: "true"
-      KC_HOSTNAME_URL: http://localhost:8082
+      KC_HOSTNAME_URL: http://158.160.90.48:8082
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
       KC_STRICT_TRANSPORT_SECURITY: "disabled"
@@ -284,7 +284,7 @@ services:
     environment:
       - PHX_SERVER=true
       - PORT=4000
-      - PHX_HOST=localhost
+      - PHX_HOST=158.160.90.48
       - DATABASE_URL=ecto://feed_user:feed_pass@postgres-feed:5432/feed_db
       - SECRET_KEY_BASE=${FEED_SECRET_KEY_BASE:?Missing SECRET_KEY_BASE}
       - REDIS_URL=redis://redis:6379/0
@@ -344,7 +344,7 @@ services:
     environment:
       - PHX_SERVER=true
       - PORT=8000
-      - PHX_HOST=localhost
+      - PHX_HOST=158.160.90.48
       - DATABASE_URL=ecto://media_user:media_pass@postgres-media:5432/media_db
       - SECRET_KEY_BASE=${MEDIA_SECRET_KEY_BASE:?Missing MEDIA_SECRET_KEY_BASE}
       - REDIS_URL=redis://redis:6379/0
@@ -358,11 +358,11 @@ services:
       - MINIO_API_PORT=9000
       # Public host for presigned URLs — must be reachable by the browser.
       # Override with your domain in production (e.g. s3.example.com).
-      - MINIO_PUBLIC_HOST=${MINIO_PUBLIC_HOST:-localhost}
+      - MINIO_PUBLIC_HOST=${MINIO_PUBLIC_HOST:-158.160.90.48}
       - MINIO_PUBLIC_PORT=${MINIO_PUBLIC_PORT:-9000}
       # Gateway base URL for server-side upload proxy URLs returned to the browser.
       # The browser will PUT the file to <this>/api/v1/media/me/uploads/{id}/data.
-      - MEDIA_PUBLIC_GATEWAY_URL=${MEDIA_PUBLIC_GATEWAY_URL:-http://localhost:8080}
+      - MEDIA_PUBLIC_GATEWAY_URL=${MEDIA_PUBLIC_GATEWAY_URL:-http://158.160.90.48:8080}
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
       # runtime.exs checks MINIO_ROOT_USER / MINIO_ROOT_PASSWORD (not MINIO_ACCESS_KEY/SECRET_KEY)
